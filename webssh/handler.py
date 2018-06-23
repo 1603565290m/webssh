@@ -106,6 +106,8 @@ class IndexHandler(MixinHandler, MixinRequestHandler):
                 data = self.request.files.get('privatekey')[0]['body']
         except TypeError:
             return
+        except Exception:
+            return
         return data.decode('utf-8')
 
     @classmethod
@@ -326,4 +328,5 @@ class AuthXsrfHandler(MixinHandler, MixinRequestHandler):
         self.loop = loop
 
     def options(self, *args, **kwargs):
-        self.write(dict(status='success', data=self.xsrf_token))
+        xsrf = self.xsrf_token
+        self.write(dict(status='success', data='{0}'.format(xsrf)))
