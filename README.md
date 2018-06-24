@@ -3,35 +3,37 @@
 #### 项目介绍
 使用WebSocket通过浏览器连接linux，提供灵活的接口，可直接作为一个服务连接通过cmdb获取信息登陆服务器。基于https://github.com/huashengdun/webssh 二次开发
 
-#### 软件架构
-软件架构说明
+![](http://carey-akhack-com.oss-cn-hangzhou.aliyuncs.com/webssh/webssh.gif)
 
+#### python版本
 
-#### 安装教程
+python >=2.7
 
-1. xxxx
-2. xxxx
-3. xxxx
+#### 安装
+
+```
+git clone https://gitee.com/careyjike_173/webssh.git && cd webssh
+
+python main.py
+```
+
+### 配置
+配置文件`webssh/settings.py`
+
+```
+get_host_info_url  // CMDB接口地址
+allow_origin  // 来源地址
+```
 
 #### 使用说明
+ 
+- 直接访问  
+  - 通过浏览器`http://127.0.0.1:8888`(按实际配置)，填写服务器信息即可登陆
 
-1. xxxx
-2. xxxx
-3. xxxx
-
-#### 参与贡献
-
-1. Fork 本项目
-2. 新建 Feat_xxx 分支
-3. 提交代码
-4. 新建 Pull Request
-
-
-#### 码云特技
-
-1. 使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
-2. 码云官方博客 [blog.gitee.com](https://blog.gitee.com)
-3. 你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解码云上的优秀开源项目
-4. [GVP](https://gitee.com/gvp) 全称是码云最有价值开源项目，是码云综合评定出的优秀开源项目
-5. 码云官方提供的使用手册 [http://git.mydoc.io/](http://git.mydoc.io/)
-6. 码云封面人物是一档用来展示码云会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+- API方式
+  - 需要配置`allow_orgin`否则请求将被拒绝
+  - 配置`get_host_info_url`获取服务器认证信息
+  - 页面需要引用`/`页面的`css`和`js`文件(也可自己实现)
+  - 发生`options`请求`/auth`获取`_xsrf`值, 返回值格式`{"status": "success", "data": "_xsrf值"}`
+  - 发送`post`请求类型为`application/json`并将`_xsrf`值携带到`header`中的`X-XSRFToken`上请求`/`获取`id`, `post data`需携带加密信息(服务端会拿着加密信息去`CMDB`获取服务器认证信息，需自己和`CMDB`系统协调该值), `post data`格式`{"data": "加密信息"}`
+  - 发送`ws`请求`/ws?id=xx`,需携带`ID`
