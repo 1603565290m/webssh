@@ -9,6 +9,7 @@ import weakref
 import paramiko
 import tornado.web
 import requests
+import sys
 
 from tornado.ioloop import IOLoop
 from tornado.util import basestring_type
@@ -101,14 +102,18 @@ class IndexHandler(MixinHandler, MixinRequestHandler):
 
     def get_privatekey(self):
         try:
-            data = self.request.body_json["privatekey"]
-            if not data:
-                data = self.request.files.get('privatekey')[0]['body']
-        except TypeError:
-            return
+            data = self.request.files.get('privatekey')[0]['body']
+
+            return data.decode('utf-8')
         except Exception:
-            return
-        return data.decode('utf-8')
+            data = None
+        if not data:
+            try:
+                data = self.request.body_json["privatekey"]
+                if sys.version_info > (2,):
+                    return data
+            except Exception:
+                return
 
     @classmethod
     def get_specific_pkey(cls, pkeycls, privatekey, password):
