@@ -14,6 +14,8 @@ python >=2.7
 ```
 git clone https://gitee.com/careyjike_173/webssh.git && cd webssh
 
+pip install -r requirements.txt
+
 python main.py
 ```
 
