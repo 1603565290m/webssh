@@ -2,6 +2,56 @@ import logging
 import os.path
 import threading
 import paramiko
+import jwt
+from jwt.exceptions import DecodeError
+from conf import auth
+from conf import secret
+from tornado.web import HTTPError
+
+
+def authenticated(func):
+
+    def wrapper(self, *args, **kwargs):
+        if "multipart/form-data" in self.request.headers._as_list["Content-Type"][0]:
+            return func(self, *args, **kwargs)
+
+        token = self.request.headers.get("Token")
+        logging.debug('Auth Token: {0}, Request-ID: {1}'.format(token, self.settings['request_id']))
+        if not token:
+            raise HTTPError(403)
+        data = jwt_decode(data=token)
+        if isinstance(data, bool) or not user_auth(data=data):
+            raise HTTPError(403)
+        return func(self, *args, **kwargs)
+    return wrapper
+
+
+def user_auth(data):
+    if isinstance(data, dict):
+        username = data.get('username', None)
+        password = data.get('password', None)
+        try:
+            auth_pass = auth[username]
+            if password == auth_pass:
+                return True
+        except KeyError:
+            return False
+    return False
+
+
+def jwt_encode(data):
+    return jwt.encode(data, secret, algorithm='HS256')
+
+
+def jwt_decode(data):
+    try:
+        decode = jwt.decode(data, secret, algorithm='HS256')
+        return decode
+    except DecodeError:
+        logging.info('jwt decode faild: {0}'.format(data))
+    except Exception as e:
+        logging.error(e)
+    return False
 
 
 def load_host_keys(path):

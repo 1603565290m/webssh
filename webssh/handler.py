@@ -16,6 +16,9 @@ from tornado.util import basestring_type
 from webssh.worker import Worker, recycle_worker, workers
 from tornado.web import HTTPError
 from tornado.options import options
+from policy import user_auth, jwt_encode, authenticated
+from conf import cmdb_api
+from conf import delay as DELAY
 
 try:
     from concurrent.futures import Future
@@ -26,9 +29,6 @@ try:
     from json.decoder import JSONDecodeError
 except ImportError:
     JSONDecodeError = ValueError
-
-
-DELAY = 3
 
 
 def parse_encoding(data):
@@ -60,10 +60,12 @@ class MixinHandler(object):
 
 
 class MixinRequestHandler(tornado.web.RequestHandler):
+
     def set_default_headers(self):
         self.set_header("Access-Control-Allow-Origin", options.allow_origin)
         self.set_header("Access-Control-Allow-Headers", options.allow_headers)
         self.set_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+        self.set_header("Request-Id", self.settings['request_id'])
 
     def check_xsrf_cookie(self):
         token = (self.get_argument("_xsrf", None) or
@@ -75,6 +77,17 @@ class MixinRequestHandler(tornado.web.RequestHandler):
         _, expected_token, _ = self._get_raw_xsrf_token()
         if not token:
             raise HTTPError(403, "'_xsrf' argument has invalid format")
+
+    def is_ajax(self):
+        if "application/json" in self.request.headers._as_list["Content-Type"][0]:
+            return True
+        return False
+
+    def _request_summary(self):
+        return "[{0}] [{1}] [{2}] [request-id:{3}]".format(
+            self.request.method, self.request.uri,
+            self.request.remote_ip, self.settings['request_id']
+        )
 
 
 class IndexHandler(MixinHandler, MixinRequestHandler):
@@ -117,7 +130,7 @@ class IndexHandler(MixinHandler, MixinRequestHandler):
 
     @classmethod
     def get_specific_pkey(cls, pkeycls, privatekey, password):
-        logging.info('Trying {}'.format(pkeycls.__name__))
+        logging.info('Trying {0}'.format(pkeycls.__name__,))
         try:
             pkey = pkeycls.from_private_key(io.StringIO(privatekey),
                                             password=password)
@@ -139,7 +152,7 @@ class IndexHandler(MixinHandler, MixinRequestHandler):
                                      password)
         if not pkey:
             raise ValueError('Not a valid private key file or '
-                             'wrong password for decrypting the private key.')
+                             'wrong password for decrypting the private key')
         return pkey
 
     def get_port(self):
@@ -152,12 +165,12 @@ class IndexHandler(MixinHandler, MixinRequestHandler):
         if 0 < port < 65536:
             return port
 
-        raise ValueError('Invalid port {}'.format(value))
+        raise ValueError('Invalid port {0}, Request-ID:{1}'.format(value, self.settings['request_id']))
 
     def get_value(self, name):
         value = self.get_argument(name)
         if not value:
-            raise ValueError('Empty {}'.format(name))
+            raise ValueError('Empty {}, Request-ID:{0}'.format(name, self.settings['request_id']))
         return value
 
     def get_args(self):
@@ -167,8 +180,11 @@ class IndexHandler(MixinHandler, MixinRequestHandler):
         password = self.get_argument('password')
         privatekey = self.get_privatekey()
         pkey = self.get_pkey_obj(privatekey, password) if privatekey else None
-        args = (hostname, port, username, password, pkey)
-        logging.debug(args)
+        if pkey:
+            args = (hostname, port, username, password, pkey)
+        else:
+            args = (hostname, port, username, password)
+        logging.info('host info: {0}, Request-ID: {1}'.format(args, self.settings['request_id']))
         return args
 
     def get_client_addr(self):
@@ -193,18 +209,24 @@ class IndexHandler(MixinHandler, MixinRequestHandler):
         ssh._host_keys_filename = self.host_keys_settings['host_keys_filename']
         ssh.set_missing_host_key_policy(self.policy)
 
+        if self.is_ajax():
+            try:
+                self.get_host_info()
+            except Exception as e:
+                raise ValueError('for cmdb get host error: {0}, Request-ID: {1}'.format(e, self.settings['request_id']))
+
         args = self.get_args()
         dst_addr = (args[0], args[1])
-        logging.info('Connecting to {}:{}'.format(*dst_addr))
+        logging.info('Connecting to {}:{}, Request-ID: {}'.format(dst_addr[0], dst_addr[1], self.settings['request_id']))
 
         try:
             ssh.connect(*args, timeout=6)
         except socket.error:
-            raise ValueError('Unable to connect to {}:{}'.format(*dst_addr))
+            raise ValueError('Unable to connect to {}:{}, Request-ID: {}'.format(dst_addr[0], dst_addr[1], self.settings['request_id']))
         except paramiko.BadAuthenticationType:
-            raise ValueError('SSH authentication failed.')
+            raise ValueError('SSH authentication failed. Request-ID: {}'.format(self.settings['request_id']))
         except paramiko.BadHostKeyException:
-            raise ValueError('Bad host key.')
+            raise ValueError('Bad host key. Request-ID: {}'.format(self.settings['request_id']))
 
         chan = ssh.invoke_shell(term='xterm')
         chan.setblocking(0)
@@ -228,26 +250,24 @@ class IndexHandler(MixinHandler, MixinRequestHandler):
     def get(self):
         self.render('index.html')
 
-    def is_ajax(self):
-        if "application/json" in self.request.headers._as_list["Content-Type"][0]:
-            return True
-        return False
+    # def is_ajax(self):
+    #     if "application/json" in self.request.headers._as_list["Content-Type"][0]:
+    #         return True
+    #     return False
 
     def get_host_info(self):
-        url = options.get_host_info_url
+        url = cmdb_api
+        logging.info('for cmdb get host, cmdb url: {0}, Request-ID: {1}'.format(url, self.settings['request_id']))
         param = self.request.body.decode("utf-8")
         param = json.loads(param)
-        json_data = requests.post(url=url, data=param).json()
+        json_data = requests.post(url=url, data=param, timeout=3).json()
+        logging.info('cmdb data: {0}, Request-ID: {1}'.format(json_data, self.settings['request_id']))
         data = json_data["data"]
         self.request.body_json = data
 
     @tornado.gen.coroutine
+    @authenticated
     def post(self):
-        if self.is_ajax():
-            try:
-                self.get_host_info()
-            except Exception as e:
-                logging.warning(e)
         worker_id = None
         status = None
         encoding = None
@@ -263,6 +283,7 @@ class IndexHandler(MixinHandler, MixinRequestHandler):
             status = str(exc)
         else:
             worker_id = worker.id
+            logging.info('worker id: {0}, Request-ID: {1}'.format(worker_id, self.settings['request_id']))
             workers[worker_id] = worker
             self.loop.call_later(DELAY, recycle_worker, worker)
             encoding = worker.encoding
@@ -333,5 +354,21 @@ class AuthXsrfHandler(MixinHandler, MixinRequestHandler):
         self.loop = loop
 
     def options(self, *args, **kwargs):
-        xsrf = self.xsrf_token
-        self.write(dict(status='success', data='{0}'.format(xsrf)))
+        self.write('success')
+
+    def post(self, *args, **kwargs):
+        if self.is_ajax():
+            param = self.request.body.decode("utf-8")
+            param = json.loads(param)
+            logging.info('Auth info: {0}, Request-ID: {1}'.format(param, self.settings['request_id']))
+            if user_auth(data=param):
+                logging.info('Auth successful, Request-ID: {}'.format(self.settings['request_id']))
+                encoded = jwt_encode(data=param)
+                logging.debug('Token: {0}, Request-ID: {1}'.format(encoded, self.settings['request_id']))
+                self.write(dict(code=0, status='success', data='{0}'.format(encoded)))
+            else:
+                logging.info('Auth Failed, Request-ID: {}'.format(self.settings['request_id']))
+                self.write(dict(code=1, status='username or password is error', data=''))
+        else:
+            logging.error('request type is error, Request-ID: {}'.format(self.settings['request_id']))
+            self.write(dict(code=2, status='request type error', data=''))
