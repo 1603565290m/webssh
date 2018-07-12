@@ -20,11 +20,34 @@ python main.py
 ```
 
 ### 配置
-配置文件`webssh/settings.py`
+配置文件`webssh/conf.py`
 
 ```
-get_host_info_url  // CMDB接口地址
-allow_origin  // 来源地址
+# 监听地址
+listen = '127.0.0.1' 
+
+# 监听端口
+port = 8888 
+
+# debug模式
+debug = False  
+
+# 日志文件
+log_file_prefix = './logs/web_ssh.log'  
+
+# 用户信息，用于其它系统请求认证，格式{"username": "password", "username1": "password1"}
+auth = {
+    'admin': 'admin'
+}
+
+# jwt secret值
+secret = 'zzz'
+
+# cmdb接口地址
+cmdb_api = 'http://127.0.0.1:8000/cmdb/get/host/info/api/'
+
+# ws进程延迟等待时间
+delay = 3
 ```
 
 #### 使用说明
@@ -33,9 +56,57 @@ allow_origin  // 来源地址
   - 通过浏览器`http://127.0.0.1:8888`(按实际配置)，填写服务器信息即可登陆
 
 - API方式
-  - 需要配置`allow_orgin`否则请求将被拒绝
-  - 配置`get_host_info_url`获取服务器认证信息
+  
   - 页面需要引用`/`页面的`css`和`js`文件(也可自己实现)
-  - 发生`options`请求`/auth`获取`_xsrf`值, 返回值格式`{"status": "success", "data": "_xsrf值"}`
-  - 发送`post`请求类型为`application/json`并将`_xsrf`值携带到`header`中的`X-XSRFToken`上请求`/`获取`id`, `post data`需携带加密信息(服务端会拿着加密信息去`CMDB`获取服务器认证信息，需自己和`CMDB`系统协调该值), `post data`格式`{"data": "加密信息"}`
+
+  - `/auth` 认证接口, 发送`post`请求类型为`application/json`获取`token`, 返回值格式`{"status": "success", "data": "token值", "code": 0}`
+
+  - `/` 获取资产认证并开启ws进程, 发送`post`请求类型为`application/json`并将`token`值携带到`header`中的`Token`上请求`/`获取`id`。 `post data`需携带加密信息(服务端会拿着加密信息去`CMDB`获取服务器认证信息，需自己和`CMDB`系统协调该值), `post data`格式`{"data": "加密信息"}`
+
   - 发送`ws`请求`/ws?id=xx`,需携带`ID`
+
+##### js例子
+
+- 获取认证信息
+
+```
+$.ajax({
+  url: 'http://127.0.0.1:8888/auth',
+  dataType: 'json',
+  contentType: 'application/json',
+  type: 'post',
+  data: JSON.stringify({"username": "admin", "password": "admin"}),
+  success: function (result) {
+    if (result.code === 0){
+      token = result.data;
+      Cookies.set('token', token);
+    } else {
+      console.log(result);
+      layer.msg("获取认证信息错误: "+ result.status)
+    }
+  },
+  error: function () {
+    layer.msg('请求错误!', {icon: 5})
+  }
+});
+```
+
+- 获取资产认证信息并生成ws进程
+
+```
+$.ajax({
+  url: 'http://127.0.0.1:8888/',
+  type: 'post',
+  data: JSON.stringify(data),
+  contentType: "application/json",
+  processData: false,
+  headers: {
+    "Token": token
+  },
+  success: callback,
+  error: function () {
+    layer.closeAll('loading');
+    layer.msg('请求错误!', {icon: 5})
+  }
+});
+```
