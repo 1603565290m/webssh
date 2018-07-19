@@ -4,8 +4,8 @@ import threading
 import paramiko
 import jwt
 from jwt.exceptions import DecodeError
-from conf import auth
-from conf import secret
+from webssh.conf import auth
+from webssh.conf import secret
 from tornado.web import HTTPError
 
 

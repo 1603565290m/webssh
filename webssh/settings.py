@@ -10,7 +10,7 @@ from webssh.policy import (
     load_host_keys, get_policy_class, check_policy_setting
 )
 from webssh._version import __version__
-import conf
+import webssh.conf as conf
 
 def print_version(flag):
     if flag:

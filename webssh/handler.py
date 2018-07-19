@@ -16,9 +16,9 @@ from tornado.util import basestring_type
 from webssh.worker import Worker, recycle_worker, workers
 from tornado.web import HTTPError
 from tornado.options import options
-from policy import user_auth, jwt_encode, authenticated
-from conf import cmdb_api
-from conf import delay as DELAY
+from webssh.policy import user_auth, jwt_encode, authenticated
+from webssh.conf import cmdb_api
+from webssh.conf import delay as DELAY
 
 try:
     from concurrent.futures import Future
