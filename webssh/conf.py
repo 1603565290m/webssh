@@ -14,7 +14,9 @@ auth = {
 
 secret = 'zzz'
 
-cmdb_api = 'http://127.0.0.1:8000/cmdb/get/host/info/api/'
+cmdb_api = 'http://127.0.0.1:8000/asset/api/asset/details/'
+
+cmdb_headers = {"Authorization": "Token 2fbaaaaef8c576b0772364f9727422bdbff248e7"}
 
 delay = 3
 

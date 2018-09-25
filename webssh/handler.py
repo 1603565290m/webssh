@@ -17,7 +17,7 @@ from webssh.worker import Worker, recycle_worker, workers
 from tornado.web import HTTPError
 from tornado.options import options
 from webssh.policy import user_auth, jwt_encode, authenticated
-from webssh.conf import cmdb_api
+from webssh.conf import cmdb_api, cmdb_headers
 from webssh.conf import delay as DELAY
 
 try:
@@ -260,8 +260,9 @@ class IndexHandler(MixinHandler, MixinRequestHandler):
         logging.info('for cmdb get host, cmdb url: {0}, Request-ID: {1}'.format(url, self.settings['request_id']))
         param = self.request.body.decode("utf-8")
         param = json.loads(param)
-        json_data = requests.post(url=url, data=param, timeout=3).json()
-        logging.info('cmdb data: {0}, Request-ID: {1}'.format(json_data, self.settings['request_id']))
+        result = requests.post(url=url, data=param, headers=cmdb_headers, timeout=3)
+        logging.info('request cmdb status: {}, data: {}, Request-ID: {}'.format(result.status_code, result.text, self.settings['request_id']))
+        json_data = result.json()
         data = json_data["data"]
         self.request.body_json = data
 
