@@ -256,6 +256,11 @@ class IndexHandler(MixinHandler, MixinRequestHandler):
     #     return False
 
     def get_host_info(self):
+        """
+        cmdb api result: {"code":0,"msg":"","data":{"hostname":"192.168.1.2","port":22,"username":"root",
+                    "password":"password","privatekey":null}}
+        :return:
+        """
         url = cmdb_api
         logging.info('for cmdb get host, cmdb url: {0}, Request-ID: {1}'.format(url, self.settings['request_id']))
         param = self.request.body.decode("utf-8")
